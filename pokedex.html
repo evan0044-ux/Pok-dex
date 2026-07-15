@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mon Pokédex Personnel</title>
+
+<!-- Manifest intégré -->
+<link rel="manifest" href="data:application/json,{
+  %22name%22:%22Mon%20Pok%C3%A9dex%20Personnel%22,
+  %22short_name%22:%22Pok%C3%A9dex%22,
+  %22start_url%22:%22.%2Findex.html%22,
+  %22display%22:%22standalone%22,
+  %22background_color%22:%22%23ffffff%22,
+  %22theme_color%22:%22%23e3350d%22,
+  %22icons%22:[
+    {
+      %22src%22:%22data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAQAAAB...TRONQUILLE...%22,
+      %22sizes%22:%22192x192%22,
+      %22type%22:%22image/png%22
+    },
+    {
+      %22src%22:%22data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAACACAQAAAB...JE_TE_FAIS_LA_GRANDE_ICONE...%22,
+      %22sizes%22:%22512x512%22,
+      %22type%22:%22image/png%22
+    }
+  ]
+}">
+
+<meta name="theme-color" content="#e3350d">
+
+<style>
+/* ——— Ton CSS inchangé ——— */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg,#dbeafe,#fef3c7);
+    margin: 0;
+    padding: 20px;
+    color: #333;
+}
+header{text-align:center;margin-bottom:30px}
+h1{color:#e3350d;margin-bottom:10px}
+.stats{font-size:1.2rem;font-weight:bold;background:white;padding:10px 20px;border-radius:20px;display:inline-block;box-shadow:0 4px 6px #0001}
+.pokedex-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:20px;max-width:1200px;margin:0 auto}
+@media(max-width:600px){.pokedex-grid{grid-template-columns:repeat(3,1fr)}}
+.pokemon-card{background:white;border-radius:15px;padding:15px;text-align:center;box-shadow:0 4px 8px #0001;transition:.2s;cursor:pointer;border:2px solid transparent}
+.pokemon-card:hover{transform:translateY(-5px);box-shadow:0 6px 12px #0002}
+.pokemon-img{width:96px;height:96px;filter:grayscale(100%) opacity(.5);transition:.3s}
+.pokemon-card.captured .pokemon-img{filter:grayscale(0%) opacity(1)}
+.pokemon-name{margin:10px 0 5px;text-transform:capitalize;font-weight:bold}
+.pokemon-id{font-size:.8rem;color:#888}
+.checkbox-container{margin-top:10px}
+.pokemon-checkbox{width:18px;height:18px;cursor:pointer}
+.pokemon-card.captured{border-color:#2ed573;background:#f1fbf5}
+.search-container{text-align:center;margin:15px}
+#search{padding:10px 16px;border-radius:20px;border:none;box-shadow:0 2px 8px #0003}
+#toggleShiny{margin-left:10px;padding:10px 16px;border:none;border-radius:20px;background:gold;cursor:pointer}
+#displayMode{margin-left:10px;padding:10px 16px;border-radius:20px;border:none;box-shadow:0 2px 8px #0003;cursor:pointer}
+</style>
+</head>
+
+<body>
+
+<header>
+    <h1>Mon Pokédex</h1>
+    <div class="stats">Pokémon attrapés : <span id="counter">0</span> / 1025</div>
+    <div class="search-container">
+        <input id="search" placeholder="🔍 Rechercher...">
+        <button id="toggleShiny">✨ Shiny</button>
+        <select id="displayMode">
+            <option value="auto">Auto</option>
+            <option value="2">2 colonnes</option>
+            <option value="3">3 colonnes</option>
+            <option value="4">4 colonnes</option>
+        </select>
+    </div>
+</header>
+
+<div class="pokedex-grid" id="pokedex"></div>
+
+<script>
+/* ——— Ton JS inchangé ——— */
+const TOTAL_POKEMON = 1025;
+
+const generationLimits = [
+    { gen: 1, start: 1, end: 151 },
+    { gen: 2, start: 152, end: 251 },
+    { gen: 3, start: 252, end: 386 },
+    { gen: 4, start: 387, end: 493 },
+    { gen: 5, start: 494, end: 649 },
+    { gen: 6, start: 650, end: 721 },
+    { gen: 7, start: 722, end: 809 },
+    { gen: 8, start: 810, end: 905 },
+    { gen: 9, start: 906, end: 1025 }
+];
+
+const pokedexContainer = document.getElementById('pokedex');
+const counterDisplay = document.getElementById('counter');
+
+let shinyMode = false;
+function storageKey(){return shinyMode ? 'myCapturedPokemonShiny' : 'myCapturedPokemon';}
+let capturedPokemon = JSON.parse(localStorage.getItem(storageKey())) || [];
+
+function updateCounter() {
+    counterDisplay.textContent = capturedPokemon.length;
+}
+
+function toggleCapture(id, cardElement, checkboxElement) {
+    const index = capturedPokemon.indexOf(id);
+    if (index === -1) {
+        capturedPokemon.push(id);
+        cardElement.classList.add('captured');
+        checkboxElement.checked = true;
+    } else {
+        capturedPokemon.splice(index, 1);
+        cardElement.classList.remove('captured');
+        checkboxElement.checked = false;
+    }
+    localStorage.setItem(storageKey(), JSON.stringify(capturedPokemon));
+    updateCounter();
+}
+
+function addGenerationSeparator(genNumber) {
+    const separator = document.createElement("div");
+    separator.style.gridColumn = "1 / -1";
+    separator.style.textAlign = "center";
+    separator.style.margin = "40px 0 20px 0";
+    separator.style.fontSize = "1.6rem";
+    separator.style.fontWeight = "bold";
+    separator.style.color = "#e3350d";
+    separator.textContent = `—— ${genNumber}ᵉ Génération ——`;
+    pokedexContainer.appendChild(separator);
+}
+
+async function fetchPokemonName(id) {
+    try {
+        const res = await fetch(`https://pokeapi.co/api/v2/pokemon-species/${id}`);
+        const data = await res.json();
+        const fr = data.names.find(n => n.language.name === "fr");
+        return fr ? fr.name : data.name;
+    } catch {
+        return `Pokémon #${id}`;
+    }
+}
+
+async function generatePokedex() {
+    let currentGen = 0;
+
+    for (let i = 1; i <= TOTAL_POKEMON; i++) {
+
+        const genInfo = generationLimits.find(g => g.start === i);
+        if (genInfo) {
+            currentGen = genInfo.gen;
+            addGenerationSeparator(currentGen);
+        }
+
+        const isCaptured = capturedPokemon.includes(i);
+
+        const card = document.createElement('div');
+        card.classList.add('pokemon-card');
+        if (isCaptured) card.classList.add('captured');
+
+        const imgUrl = shinyMode
+            ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/${i}.png`
+            : `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${i}.png`;
+
+        card.innerHTML = `
+            <div class="pokemon-id">#${String(i).padStart(3, '0')}</div>
+            <img class="pokemon-img" src="${imgUrl}" alt="Pokemon N°${i}" loading="lazy">
+            <div class="pokemon-name">Pokémon #${i}</div>
+            <div class="checkbox-container">
+                <input type="checkbox" class="pokemon-checkbox" ${isCaptured ? 'checked' : ''}>
+            </div>
+        `;
+
+        const checkbox = card.querySelector('.pokemon-checkbox');
+
+        card.addEventListener('click', (e) => {
+            if (e.target !== checkbox) toggleCapture(i, card, checkbox);
+        });
+
+        checkbox.addEventListener('change', () => {
+            toggleCapture(i, card, checkbox);
+        });
+
+        pokedexContainer.appendChild(card);
+
+        fetchPokemonName(i).then(name => {
+            card.querySelector('.pokemon-name').textContent = name;
+        });
+    }
+
+    updateCounter();
+}
+
+document.getElementById("search").addEventListener("input", e => {
+    const v = e.target.value.toLowerCase();
+    document.querySelectorAll(".pokemon-card").forEach(c => {
+        c.style.display = (c.innerText.toLowerCase().includes(v)) ? "" : "none";
+    });
+});
+
+document.getElementById("toggleShiny").onclick = () => {
+    shinyMode = !shinyMode;
+    capturedPokemon = JSON.parse(localStorage.getItem(storageKey())) || [];
+
+    document.querySelectorAll(".pokemon-card").forEach((card, i) => {
+        const id = i + 1;
+        const c = capturedPokemon.includes(id);
+        card.classList.toggle("captured", c);
+        card.querySelector(".pokemon-checkbox").checked = c;
+
+        const img = card.querySelector(".pokemon-img");
+        img.src = shinyMode
+            ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/${id}.png`
+            : `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png`;
+    });
+
+    updateCounter();
+};
+
+document.getElementById("displayMode").addEventListener("change", e => {
+    const mode = e.target.value;
+    const grid = document.querySelector(".pokedex-grid");
+
+    if (mode === "auto") {
+        grid.style.gridTemplateColumns = "repeat(auto-fill, minmax(150px, 1fr))";
+    } else {
+        grid.style.gridTemplateColumns = `repeat(${mode}, 1fr)`;
+    }
+});
+
+generatePokedex();
+</script>
+
+<!-- Service Worker intégré -->
+<script>
+const swCode = `
+const CACHE_NAME = "pokedex-cache-v1";
+const FILES_TO_CACHE = ["./"];
+
+self.addEventListener("install", e => {
+  e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(FILES_TO_CACHE)));
+});
+
+self.addEventListener("fetch", e => {
+  e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
+});
+`;
+
+const blob = new Blob([swCode], { type: "text/javascript" });
+const swURL = URL.createObjectURL(blob);
+
+if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register(swURL);
+}
+</script>
+
+</body>
+</html>
